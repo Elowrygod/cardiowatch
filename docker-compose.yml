@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  signal-source:
+    build: .
+    image: cardiowatch-signal-source:latest
+    ports:
+      - "8765:8765"
+    environment:
+      SOURCE_TYPE: synthetic
+      HEART_RATE: "70"
+      FS: "100"
+      CHUNK_SECONDS: "1.0"
+      REALTIME: "1"
+
+    # Чтобы использовать реальную запись PhysioNet вместо математической
+    # модели, закомментируйте блок environment выше и раскомментируйте:
+    #
+    # volumes:
+    #   - ./data:/app/data:ro
+    # environment:
+    #   SOURCE_TYPE: physionet
+    #   RECORD_PATH: /app/data/s1_sit
+    #   CHANNEL: pleth_1
