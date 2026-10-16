@@ -11,11 +11,13 @@
                     (формула из методички: Yn = SUM Xn-j * Bj, реализована
                      через scipy.signal, что эквивалентно применению
                      набора коэффициентов Bj к скользящему окну отсчётов).
+
+Полный вывод формул с разбором каждой буквы — см. отчёт по ЛР № 2, раздел 2.3.
 """
 
 from __future__ import annotations
-import numpy as np
-from scipy.signal import butter, filtfilt
+import numpy as np                           # векторные операции над отсчётами сигнала
+from scipy.signal import butter, filtfilt    # расчёт коэффициентов Bj и фильтрация без фазового сдвига
 
 
 def simple_ema(x: np.ndarray, alpha: float | None = None, n: int = 10) -> np.ndarray:
@@ -28,12 +30,12 @@ def simple_ema(x: np.ndarray, alpha: float | None = None, n: int = 10) -> np.nda
     напрямую, либо число периодов сглаживания N (тогда alpha = 2/(N+1),
     как рекомендовано в методичке).
     """
-    if alpha is None:
-        alpha = 2.0 / (n + 1)
-    out = np.empty_like(x, dtype=np.float64)
-    out[0] = x[0]
-    for k in range(1, len(x)):
-        out[k] = alpha * x[k] + (1 - alpha) * out[k - 1]
+    if alpha is None:                                    # если alpha не задана явно —
+        alpha = 2.0 / (n + 1)                             # пересчитываем её из "периода" N (п. 2.3 отчёта)
+    out = np.empty_like(x, dtype=np.float64)              # массив под результат той же длины, что и x
+    out[0] = x[0]                                         # начальное условие: EMA[0] = x[0] (без предыстории)
+    for k in range(1, len(x)):                            # рекуррентно, начиная со второго отсчёта
+        out[k] = alpha * x[k] + (1 - alpha) * out[k - 1]  # сама формула EMA: вес alpha новому, (1-alpha) памяти
     return out
 
 
@@ -61,22 +63,22 @@ def adaptive_ema(x: np.ndarray, er_window: int = 10,
         SC[k] = (ER[k]*(alpha_fast - alpha_slow) + alpha_slow)^2
         KAMA[k] = KAMA[k-1] + SC[k]*(x[k] - KAMA[k-1])
     """
-    n = len(x)
-    out = np.empty(n, dtype=np.float64)
-    out[0] = x[0]
-    a_fast = 2.0 / (n_fast + 1)
-    a_slow = 2.0 / (n_slow + 1)
+    n = len(x)                                       # число отсчётов входного ряда
+    out = np.empty(n, dtype=np.float64)               # результат — сглаженный ряд той же длины
+    out[0] = x[0]                                     # начальное условие: KAMA[0] = x[0]
+    a_fast = 2.0 / (n_fast + 1)                       # alpha_fast — предельно быстрый коэффициент (n_fast=2 по умолчанию)
+    a_slow = 2.0 / (n_slow + 1)                       # alpha_slow — предельно медленный коэффициент (n_slow=30 по умолчанию)
 
-    diff = np.abs(np.diff(x))                      # |x[i]-x[i-1]|
-    volatility = np.concatenate(([0.0], diff))      # выровнено по индексу k
+    diff = np.abs(np.diff(x))                         # |x[i]-x[i-1]| для всех соседних пар — это "шаги пути"
+    volatility = np.concatenate(([0.0], diff))        # сдвиг на 1, чтобы volatility[k] соответствовало шагу к x[k]
 
-    for k in range(1, n):
-        w = min(er_window, k)
-        change = abs(x[k] - x[k - w])
-        vol = np.sum(volatility[k - w + 1:k + 1])
-        er = change / vol if vol > 1e-12 else 0.0
-        sc = (er * (a_fast - a_slow) + a_slow) ** 2
-        out[k] = out[k - 1] + sc * (x[k] - out[k - 1])
+    for k in range(1, n):                             # рекуррентно, начиная со второго отсчёта
+        w = min(er_window, k)                         # окно ER укорачивается в начале ряда, пока данных мало
+        change = abs(x[k] - x[k - w])                 # числитель ER: чистое смещение (по прямой) за окно w
+        vol = np.sum(volatility[k - w + 1:k + 1])     # знаменатель ER: сумма всех шагов (пройденный путь) за окно w
+        er = change / vol if vol > 1e-12 else 0.0     # ER[k] = чистое смещение / путь; защита от деления на 0
+        sc = (er * (a_fast - a_slow) + a_slow) ** 2   # SC[k]: линейная интерполяция между alpha_slow и alpha_fast по ER, в квадрате
+        out[k] = out[k - 1] + sc * (x[k] - out[k - 1])  # рекурсия KAMA — та же форма, что и у EMA, но с переменным sc
     return out
 
 
@@ -89,12 +91,13 @@ def bandpass_filter(x: np.ndarray, fs: float, low_hz: float = 0.5,
 
     Полоса 0,5-8 Гц выбрана так же, как в отчёте по ЛР № 1 (раздел 3.4):
     подавляет дрейф изолинии (дыхание, движение) и высокочастотный шум,
-    сохраняя форму пульсовой волны и дикротический изгиб.
+    сохраняя форму пульсовой волны и дикротический изгиб. Для ЭКГ (QRS-
+    комплекс) полосу нужно сдвигать выше, см. отчёт ЛР № 2, раздел 3.9.
 
     filtfilt применяет фильтр в прямом и обратном направлении, поэтому
     результат не имеет фазового сдвига (важно для точного определения
     моментов пиков на следующем этапе — оценке ЧСС).
     """
-    nyq = fs / 2.0
-    b, a = butter(order, [low_hz / nyq, high_hz / nyq], btype="band")
-    return filtfilt(b, a, x)
+    nyq = fs / 2.0                                          # частота Найквиста — половина частоты дискретизации
+    b, a = butter(order, [low_hz / nyq, high_hz / nyq], btype="band")  # коэффициенты Bj (b) и Aj (a) полосового фильтра
+    return filtfilt(b, a, x)                                # прямой + обратный проход => нулевой фазовый сдвиг
