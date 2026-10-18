@@ -10,30 +10,35 @@
     python test_client.py                    # ws://localhost:8765
     python test_client.py ws://localhost:8765 --n 10
 """
-import argparse       # разбор аргументов командной строки (адрес сервиса, число порций)
+import argparse       # разбор аргументов командной строки (адрес сервиса, число сообщений)
 import asyncio        # клиент тоже асинхронный — та же модель, что и у сервиса
 import json           # разбор JSON-сообщений от сервиса
-import statistics     # для среднего значения порции (statistics.fmean)
 
 import websockets     # WebSocket-клиент
 
 
-async def run(uri: str, n_chunks: int) -> None:
+async def run(uri: str, n_messages: int) -> None:
+    """
+    С Лабораторной работы № 3 сервис шлёт не сырые отсчёты ФПГ, а уже
+    готовый результат по каждому окну анализа (см. docstring модуля
+    cardiowatch/signal_service.py): ЧСС, признаки ВСР и решение нейросети.
+    """
     print(f"Подключение к {uri} ...")
-    async with websockets.connect(uri) as ws:        # открываем соединение с сервисом
-        for i in range(n_chunks):                    # принимаем ровно n_chunks порций и завершаемся
-            msg = await ws.recv()                    # ждём очередное сообщение от сервера
-            data = json.loads(msg)                   # разбираем JSON {"t0":..., "fs":..., "ppg":[...]}
-            ppg = data["ppg"]                         # сами отсчёты порции
-            print(f"chunk {i:02d}: t0={data['t0']:6.2f} c   fs={data['fs']:.0f} Гц   "
-                  f"n={len(ppg):4d}   среднее={statistics.fmean(ppg):.3f}   "
-                  f"мин={min(ppg):.3f}   макс={max(ppg):.3f}")   # краткая статистика порции — проверка, что данные осмысленные
+    async with websockets.connect(uri) as ws:        # открываем соединение с устройством
+        for i in range(n_messages):                  # принимаем ровно n_messages окон и завершаемся
+            msg = await ws.recv()                    # ждём очередной результат от сервера
+            data = json.loads(msg)                   # разбираем JSON (см. формат в docstring signal_service.py)
+            risk = "РИСК" if data["risk_class"] else "норма"
+            print(f"окно {i:02d}: t={data['t']:6.1f} c   ЧСС={data['hr']:5.1f} "
+                  f"(сглаж.={data['hr_smoothed']:5.1f})   SDNN={data['sdnn']:5.1f}   "
+                  f"RMSSD={data['rmssd']:5.1f}   pNN50={data['pnn50']:5.1f}   "
+                  f"риск={data['risk_prob']:.2f} [{risk}]")   # вся строка — проверка, что пайплайн целиком работает
     print("Готово.")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("uri", nargs="?", default="ws://localhost:8765")      # адрес сервиса, по умолчанию локальный
-    ap.add_argument("--n", type=int, default=5, help="сколько порций принять")
+    ap.add_argument("--n", type=int, default=5, help="сколько окон принять")
     args = ap.parse_args()
     asyncio.run(run(args.uri, args.n))     # запускаем асинхронную функцию run() из обычного синхронного кода

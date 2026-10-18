@@ -7,3 +7,15 @@ plots/*.png
 *.dat
 *.hea
 csv/
+
+# Лабораторная работа № 3
+model.pt                 # обучается при сборке Docker-образа, см. Dockerfile
+
+# Flutter (mobile/)
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/.packages
+# pubspec.lock сознательно НЕ игнорируется — это приложение, а не пакет,
+# для приложений лок-файл принято коммитить ради воспроизводимой сборки.

@@ -1,17 +1,25 @@
-version: "3.8"
+# Лабораторная работа № 3: "устройство" (генератор + обработка + нейросеть)
+# и база данных поднимаются одной командой docker compose up --build.
+# Flutter-приложение подключается к обоим сервисам снаружи: к device по
+# WebSocket (живой поток результатов) и к db напрямую по протоколу
+# PostgreSQL (пакет postgres для Dart) — шифрует данные сама и пишет
+# историю сеансов (ЛР № 4).
 
 services:
-  signal-source:
+  device:
     build: .
-    image: cardiowatch-signal-source:latest
+    image: cardiowatch-device:latest
     ports:
-      - "8765:8765"
+      - "8765:8765"          # WebSocket — сюда подключается Flutter за живым потоком
     environment:
       SOURCE_TYPE: synthetic
       HEART_RATE: "70"
       FS: "100"
       CHUNK_SECONDS: "1.0"
       REALTIME: "1"
+      WIN_SECONDS: "8.0"
+      STEP_SECONDS: "2.0"
+      FS_TARGET: "50.0"
 
     # Чтобы использовать реальную запись PhysioNet вместо математической
     # модели, закомментируйте блок environment выше и раскомментируйте:
@@ -22,3 +30,18 @@ services:
     #   SOURCE_TYPE: physionet
     #   RECORD_PATH: /app/data/s1_sit
     #   CHANNEL: pleth_1
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"           # сюда подключается Flutter напрямую (пакет postgres)
+    environment:
+      POSTGRES_USER: cardiowatch
+      POSTGRES_PASSWORD: cardiowatch   # учебный стенд: пароль захардкожен нарочно, см. отчёт ЛР № 4, раздел про ограничения
+      POSTGRES_DB: cardiowatch
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro   # схема из ЛР № 1 создаётся при первом запуске
+      - pgdata:/var/lib/postgresql/data                          # данные переживают перезапуск контейнера
+
+volumes:
+  pgdata:

@@ -1,0 +1,28 @@
+name: cardiowatch_mobile
+description: >
+  CardioWatch — Лабораторные работы № 3-4. Тонкий клиент: получает поток
+  уже обработанных результатов от Docker-"устройства" по WebSocket,
+  рисует график ЧСС и риск, шифрует и сохраняет сеансы в PostgreSQL.
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  web_socket_channel: ^3.0.1   # приём живого потока от device (ЛР № 3)
+  fl_chart: ^0.69.0            # график ЧСС (бесплатный, без лицензии)
+  postgres: ^3.5.0             # прямое подключение к БД (ЛР № 4)
+  cryptography: ^2.7.0         # AES-256-GCM на стороне приложения перед записью в БД
+  provider: ^6.1.2             # управление состоянием экрана (минимум концепций)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
