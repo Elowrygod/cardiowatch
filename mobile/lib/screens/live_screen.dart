@@ -15,11 +15,13 @@ class LiveScreen extends StatefulWidget {
 }
 
 class _LiveScreenState extends State<LiveScreen> {
-  // Значения по умолчанию рассчитаны на эмулятор Android (10.0.2.2 — это
-  // "localhost хоста" с точки зрения эмулятора); для физического телефона
-  // нужно подставить реальный IP компьютера с Docker в локальной сети.
-  final _deviceUriCtrl = TextEditingController(text: 'ws://10.0.2.2:8765');
-  final _dbHostCtrl = TextEditingController(text: '10.0.2.2');
+  // Значения по умолчанию рассчитаны на запуск в Chrome/desktop на той же
+  // машине, где работает Docker (flutter run -d chrome — самый простой
+  // способ проверить приложение без эмулятора). Для Android-эмулятора
+  // замените localhost на 10.0.2.2, для физического телефона — на реальный
+  // IP компьютера с Docker в локальной сети (узнать: ipconfig → IPv4-адрес).
+  final _deviceUriCtrl = TextEditingController(text: 'ws://localhost:8765');
+  final _dbHostCtrl = TextEditingController(text: 'localhost');
   final _db = DbService();
   bool _saving = false;
 
@@ -88,8 +90,12 @@ class _LiveScreenState extends State<LiveScreen> {
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => stream.connect(_deviceUriCtrl.text.trim()),
-                child: const Text('Подключиться'),
+                onPressed: stream.isConnecting ? null : () => stream.connect(_deviceUriCtrl.text.trim()),
+                child: stream.isConnecting
+                    ? const SizedBox(
+                        height: 18, width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Подключиться'),
               ),
               if (stream.lastError != null)
                 Padding(
